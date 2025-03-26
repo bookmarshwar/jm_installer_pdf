@@ -1,0 +1,2 @@
+# jm_installer_pdf
+nonebot2插件,用于自动化下载jm本子转成pdf发送
