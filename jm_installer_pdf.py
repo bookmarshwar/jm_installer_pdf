@@ -2,10 +2,13 @@ from nonebot.rule import to_me
 import requests
 from nonebot.plugin import on_command
 from nonebot.adapters import Event,Message,MessageSegment,Bot
+from lib.checkQQt import check_permission_as
 from nonebot.params import ArgPlainText
 from nonebot.params import CommandArg
+from nonebot.adapters.onebot.v11.exception import NetworkError
 import shutil
 import jmcomic, os, time, yaml
+from jmcomic.jm_exception import MissingAlbumPhotoException
 from PIL import Image
 config = "./config.yml"
 loadConfig = jmcomic.JmOption.from_file(config)
@@ -53,8 +56,6 @@ def all2PDF(input_folder, pdfpath, pdfname):
 def jm_installer_to_pdf(jm_id):
     jmcomic.download_photo(jm_id,loadConfig,callback=to_pdf)
 def to_pdf(ablum,d):
-    global name,ab
-    ab=ablum
     with open(config, "r",encoding="utf8") as f:
         data = yaml.load(f, Loader=yaml.FullLoader)
         path = data["dir_rule"]["base_dir"]
@@ -72,27 +73,169 @@ async def handle_function(bot:Bot, event: Event,args: Message = CommandArg()):
     with open(config, "r",encoding="utf8") as f:
         data = yaml.load(f, Loader=yaml.FullLoader)
         path = data["dir_rule"]["base_dir"]
+    try :
+        jmcd=jmcomic.JmDownloader(loadConfig)
+        c=loadConfig.build_jm_client()
+        a=c.get_album_detail(argjm)
+    except Exception as e:
+        await openj.finish("出错了,似乎没有这个")
+    from pathlib import Path
+
+    folder = Path(path)
+    pdf_o=[
+        {
+	"type": "file",
+    "data": {
+        "file": "file://"+path + "/" + a.name+".pdf",
+        "name": argjm+".pdf"
+    }}]
+    for file in folder.glob('*'):
+        if file.is_file():  # 虽然你说没有文件夹，但保留检查更安全
+            if file.name==a.name+".pdf":
+                await openj.send("已经存在,正在发送不好康的")
+                try:
+                    await bot.call_api("send_group_msg",group_id=event.group_id, message=pdf_o)
+                except NetworkError as e:
+                    await openj.finish(f"发送失败,{e.msg}")
+                await openj.finish("完成")
     try:
         jm_installer_to_pdf(argjm)
     except Exception as e:
         await openj.finish("出错了,似乎没有这个")
-    
-    authors="本篇作者:"+ab.author
+    authors="本篇作者:"+a.author
     tags="本篇tag:"
-    for i in ab.tags:
+    for i in a.tags:
         tags=tags+i+","
     messge_id=await openj.send(authors+"\n"+tags)
-
+    """ 
+    requests.post(url='http://127.0.0.1:9999/revoke',json={
+    "id":f"{messge_id['message_id']}",
+    "time":30
+ })"""
     await openj.send("正在发送不好康的")
-   #发送文件
-    file=[
+    try:
+     messge_id=await bot.call_api("send_group_msg",group_id=event.group_id, message=pdf_o)
+    except NetworkError as e:
+        await openj.finish(f"发送失败,{e.msg}")
+    await openj.finish("完成")
+    """
+    m1=[
         {
+            "type": "reply",
+            "data": {
+                "id": messge_id["message_id"]
+            }
+        },
+        {
+            "type": "text",
+            "data": {
+                "text": "注意身体"
+            }
+        }
+    ]
+    messge_id=await bot.call_api("send_private_msg",user_id=bot.self_id, message=m1)
+    m2 = [
+        {
+		"type": "node",
+		"data": {
+                            "nickname": "丁勇",
+                "user_id": 10,
+			"id":messge_id["message_id"],
+		}
+	}]
+    messge_id=await bot.call_api("send_private_forward_msg",user_id=bot.self_id, message=m2)
+    m2 = [
+        {
+		"type": "node",
+		"data": {
+                "nickname": "丁勇",
+                "user_id": 10,
+			"content":[
+                {
+            "type": "reply",
+            "data": {
+                "content":[
+                     {
 	"type": "file",
     "data": {
-        "file": "file://"+name,
+        "file": name,
         "name": argjm+".pdf"
-    }}]
-    messge_id=await bot.call_api("send_group_msg",group_id=event.group_id, message=file)
-    await openj.finish("完成")
+    }}
+                ]
+            }
+        },
+        {
+            "type": "text",
+            "data": {
+                "text": "注意身体"
+            }
+        }
+            ]
+		}
+	}]
+    await bot.call_api("send_group_forward_msg",group_id=event.group_id, messages=m2)
+    await openj.finish("ok")
+
+    """
+    """
+    print(messge_id)
+    me=[
+        {
+
+            "type": "reply",
+            "data": {
+                "id": messge_id
+            }
+        },
+        {
+            "type": "text",
+            "data": {
+                "text": "注意身体"
+            }
+        }
+    ]
+
+    messge_id=await bot.call_api("send_private_msg",user_id=bot.self_id, message=file)
+    rely = [
+        {
+		"type": "node",
+		"data": {
+			"id":messge_id["message_id"],
+		}
+	}]
+    reply2=[
+        {
+            "type": "node",
+            "data": {
+                "content": [
+
+                    {
+                        "type": "reply",
+                        "data": {
+                            "id": messge_id["message_id"]
+                        }
+                    },
+                    {
+                        "type": "text",
+                        "data": {
+                            "text": "注意身体"
+                        }
+                    }
+                ]
+            }
+        }
+    ]
+    messge_id=await bot.call_api("send_private_forward_msg",user_id=bot.self_id, messages=rely)
+    rely = [
+        {
+		"type": "node",
+		"data": {
+			"id":messge_id["message_id"],
+		}
+	}]
+    await bot.call_api("send_group_forward_msg",group_id=event.group_id, messages=rely)
+
+    await openj.finish("ok")
     
+    """
     
